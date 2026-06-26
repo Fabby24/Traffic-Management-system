@@ -2,9 +2,9 @@
 
 A web-based **Studio Traffic Management System** designed to help creative agencies efficiently manage projects, tasks, team workloads, and deadlines through a centralized platform.
 
-## 🚀 Current Progress
+##  Current Progress
 
-### ✅ Backend Authentication Module
+### Backend Authentication Module
 
 The following features have been implemented:
 
@@ -23,14 +23,14 @@ The following features have been implemented:
 - MVC Project Architecture
 - API Testing with Postman
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 - **Backend:** Node.js, Express.js
 - **Database:** MySQL
 - **Authentication:** JWT & bcrypt
 - **API Testing:** Postman
 
-## 📂 Project Structure
+##  Project Structure
 
 ```
 backend/
@@ -46,7 +46,7 @@ backend/
 └── package.json
 ```
 
-## 📌 Next Milestones
+##  Next Milestones
 
 - Frontend Authentication
 - Client Management Module
@@ -56,6 +56,6 @@ backend/
 - Time Tracking
 - Reports & Analytics
 
-## 📖 Status
+##  Status
 
-🚧 **Project is currently under active development.**
+ **Project is currently under active development.**
