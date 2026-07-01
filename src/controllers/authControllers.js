@@ -76,7 +76,7 @@ class AuthController{
             const {email} = req.body;
             const {user, token} = await AuthService.requestPasswordReset(email);
 
-            await EmailService.sendPasswordResetEmail(email, user.first_name, token);
+            await EmailService.sendPasswordResetEmail(email, token, user.first_name);
 
             res.json({
                 success: true,
@@ -100,8 +100,8 @@ class AuthController{
             });
         }
         try {
-            const {token, newPassword} = req.body;
-            await AuthService.resetPassword(token, newPassword);
+            const {token, new_password} = req.body;
+            await AuthService.resetPassword(token, new_password);
             res.json({
                 success: true,
                 message: 'Password reset successful'

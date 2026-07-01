@@ -23,6 +23,10 @@ class PasswordResetToken {
     
     //finding token and validating it
     static async findByToken(token) {
+        if (!token) {
+            throw new Error('Token is required');
+        }
+        
         const [rows] = await db.execute(
             'SELECT * FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()',
             [token]

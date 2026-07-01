@@ -70,6 +70,12 @@ class AuthService {
 
     //reset password
     static async resetPassword(token, newPassword) {
+        if (!token) {
+            throw new Error('Reset token is required');
+        }
+        if (!newPassword || newPassword.length < 8) {
+            throw new Error('Password must be at least 8 characters');
+        }
         const resetToken = await PasswordResetToken.findByToken(token);
         if (!resetToken) {
             throw new Error('Invalid or expired password reset token');
