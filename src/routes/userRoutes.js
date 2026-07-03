@@ -17,6 +17,20 @@ router.get(
     UserController.getUserById
 );
 
+// Create a new user
+router.post(
+    '/',
+    userValidators.createUser,
+    UserController.createUser
+);
+
+//update user
+router.put(
+    '/:id',
+    userValidators.updateUser,
+    UserController.updateUser
+);
+
 router.patch(
     '/:id/status',
     userValidators.updateStatus,
@@ -33,6 +47,27 @@ router.delete(
   '/:id',
   userValidators.deleteUser,
   UserController.deleteUser
+);
+
+// invite user
+router.post(
+  '/invite',
+  userValidators.inviteUser,
+  UserController.inviteUser
+);
+
+//bulk status update
+router.post(
+  '/bulk-status',
+  userValidators.bulkStatusUpdate,
+  UserController.bulkStatusUpdate
+);
+
+//bulk delete
+router.post(
+  '/bulk-delete',
+  userValidators.bulkDelete,
+  UserController.bulkDelete
 );
 
 module.exports = router;

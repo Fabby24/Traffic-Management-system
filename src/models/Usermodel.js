@@ -3,11 +3,13 @@ const bcrypt = require('bcryptjs');
 
 class User {
     static async createUser(userData) {
-        const { first_name, last_name, email, password, role = 'team_member' } = userData;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const [result] = await db.query(
-            'INSERT INTO users (first_name, last_name, email, password, role) VALUES (?, ?, ?, ?, ?)',
-            [first_name, last_name, email, hashedPassword, role]
+        const { first_name, last_name, email, password, role = 'team_member', status = 'active' } = userData;
+        const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 10;
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+    
+        const [result] = await db.execute(
+            'INSERT INTO users (first_name, last_name, email, password, role, status) VALUES (?, ?, ?, ?, ?, ?)',
+            [first_name, last_name, email, hashedPassword, role, status]
         );
         return result.insertId;
     }

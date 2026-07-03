@@ -97,6 +97,65 @@ class EmailService {
       return false;
     }
   }
+  async sendInvitationEmail(email, role, inviteLink) {
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: 'You\'ve been invited to join Studio X',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0B132B; color: #FFFFFF; padding: 40px; border-radius: 12px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <div style="display: inline-block; background: #2563EB; padding: 12px 24px; border-radius: 8px;">
+              <h1 style="color: #FFFFFF; margin: 0; font-size: 24px;">STUDIO X</h1>
+            </div>
+          </div>
+          
+          <h2 style="color: #FFFFFF; margin-bottom: 20px;">You've been invited!</h2>
+          
+          <p style="color: #94A3B8; margin-bottom: 20px;">
+            You have been invited to join Studio X as a <strong style="color: #7C3AED;">${role}</strong>.
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${inviteLink}" 
+               style="background: linear-gradient(135deg, #2563EB, #7C3AED); 
+                      color: white; 
+                      padding: 14px 40px; 
+                      text-decoration: none; 
+                      border-radius: 8px; 
+                      display: inline-block;
+                      font-weight: 600;
+                      font-size: 16px;">
+              Accept Invitation
+            </a>
+          </div>
+          
+          <p style="color: #64748B; font-size: 14px; margin-bottom: 10px;">
+            Or copy and paste this link in your browser:
+          </p>
+          <p style="word-break: break-all; color: #64748B; background: #1E293B; padding: 12px; border-radius: 6px; font-size: 12px;">
+            ${inviteLink}
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #1E293B; margin: 30px 0;">
+          
+          <p style="color: #475569; font-size: 12px; text-align: center;">
+            This invitation will expire in 7 days.<br>
+            If you didn't expect this invitation, please ignore this email.
+          </p>
+        </div>
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      console.log(' Invitation email sent to:', email);
+      return true;
+    } catch (error) {
+      console.error(' Invitation email failed:', error.message);
+      throw new Error('Failed to send invitation email');
+    }
+  }
 }
 
 module.exports = new EmailService();
