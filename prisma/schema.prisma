@@ -1,0 +1,379 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id            String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  name          String    @db.VarChar(100)
+  slug          String    @db.VarChar(100)
+  logo          String?   @db.VarChar(255)
+  theme         Json?     @default("{\"primary\": \"#2563EB\", \"secondary\": \"#7C3AED\"}")
+  contact_email String?   @db.VarChar(255)
+  timezone      String?   @default("UTC") @db.VarChar(50)
+  status        OrgStatus @default(pending)
+  settings      Json?     @default("{}")
+  created_by    String?
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  updated_by    String?
+  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime? @db.Timestamptz(6)
+
+  settings_rel  OrganizationSettings?
+  users         User[]
+  clients       Client[]
+  projects      Project[]
+  tasks         Task[]
+  time_logs     TimeLog[]
+  notifications Notification[]
+  audit_logs    AuditLog[]
+
+  @@unique([slug], map: "organizations_slug_unique")
+  @@index([status])
+  @@index([deleted_at])
+  @@map("organizations")
+}
+
+model OrganizationSettings {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id            String    @unique
+  brand_color                String?   @default("#2563EB") @db.VarChar(50)
+  brand_secondary            String?   @default("#7C3AED") @db.VarChar(50)
+  logo_url                   String?   @db.VarChar(255)
+  favicon_url                String?   @db.VarChar(255)
+  allow_self_registration    Boolean?  @default(true)
+  require_email_verification Boolean?  @default(true)
+  allow_google_auth          Boolean?  @default(false)
+  allow_microsoft_auth       Boolean?  @default(false)
+  task_assignment_email      Boolean?  @default(true)
+  task_deadline_reminder     Boolean?  @default(true)
+  project_update_email       Boolean?  @default(true)
+  billing_email              String?   @db.VarChar(255)
+  billing_contact            String?   @db.VarChar(255)
+  tax_id                     String?   @db.VarChar(50)
+  currency                   String?   @default("USD") @db.VarChar(10)
+  payment_terms              String?   @db.VarChar(50)
+  created_at                 DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime? @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organization_id], references: [id])
+
+  @@map("organization_settings")
+}
+
+model User {
+  id              String     @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id String
+  email           String     @db.VarChar(255)
+  password        String     @db.VarChar(255)
+  first_name      String     @db.VarChar(50)
+  last_name       String     @db.VarChar(50)
+  role            UserRole   @default(team_member)
+  status          UserStatus @default(active)
+  profile_image   String?    @db.VarChar(255)
+  last_login      DateTime?  @db.Timestamptz(6)
+  created_by      String?
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
+  updated_by      String?
+  updated_at      DateTime?  @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?  @db.Timestamptz(6)
+
+  organization          Organization         @relation(fields: [organization_id], references: [id])
+  password_reset_tokens PasswordResetToken[]
+  assigned_clients      Client[]             @relation("ClientAssignedTo")
+  created_clients       Client[]             @relation("ClientCreatedBy")
+  assigned_tasks        Task[]               @relation("TaskAssignedTo")
+  created_tasks         Task[]               @relation("TaskCreatedBy")
+  created_projects      Project[]            @relation("ProjectCreatedBy")
+  time_logs             TimeLog[]
+  notifications         Notification[]
+  audit_logs            AuditLog[]
+  task_comments         TaskComment[]
+
+  @@unique([organization_id, email])
+  @@index([organization_id])
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([deleted_at])
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  user_id    String
+  token      String    @unique @db.VarChar(255)
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([expires_at])
+  @@map("password_reset_tokens")
+}
+
+model Client {
+  id                String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id   String
+  name              String       @db.VarChar(100)
+  company           String?      @db.VarChar(100)
+  email             String       @db.VarChar(255)
+  phone             String?      @db.VarChar(20)
+  website           String?      @db.VarChar(255)
+  industry          String?      @db.VarChar(100)
+  logo              String?      @db.VarChar(255)
+  tags              Json?        @default("[]")
+  status            ClientStatus @default(active)
+  priority          Priority     @default(medium)
+  preferred_contact String?      @default("email") @db.VarChar(50)
+  timezone          String?      @default("UTC") @db.VarChar(50)
+  notes             String?
+  billing_contact   String?      @db.VarChar(255)
+  payment_terms     String?      @db.VarChar(50)
+  currency          String?      @default("USD") @db.VarChar(10)
+  tax_number        String?      @db.VarChar(50)
+  assigned_to       String?
+  created_by        String?
+  created_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?    @default(now()) @db.Timestamptz(6)
+  deleted_at        DateTime?    @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organization_id], references: [id])
+  assignee     User?        @relation("ClientAssignedTo", fields: [assigned_to], references: [id])
+  creator      User?        @relation("ClientCreatedBy", fields: [created_by], references: [id])
+  projects     Project[]
+
+  @@unique([organization_id, email])
+  @@index([organization_id])
+  @@index([name])
+  @@index([email])
+  @@index([status])
+  @@index([priority])
+  @@index([deleted_at])
+  @@map("clients")
+}
+
+model Project {
+  id              String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id String
+  client_id       String?
+  name            String    @db.VarChar(100)
+  description     String?
+  status          String?   @default("planning") @db.VarChar(50)
+  priority        Priority  @default(medium)
+  start_date      DateTime? @db.Timestamptz(6)
+  end_date        DateTime? @db.Timestamptz(6)
+  budget          Decimal?  @db.Decimal(10, 2)
+  progress        Int?      @default(0)
+  created_by      String?
+  assigned_team   String[]
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime? @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organization_id], references: [id])
+  client       Client?      @relation(fields: [client_id], references: [id])
+  creator      User?        @relation("ProjectCreatedBy", fields: [created_by], references: [id])
+  tasks        Task[]
+  time_logs    TimeLog[]
+
+  @@index([organization_id])
+  @@index([client_id])
+  @@index([status])
+  @@index([deleted_at])
+  @@map("projects")
+}
+
+model Task {
+  id              String       @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id String
+  project_id      String?
+  title           String       @db.VarChar(200)
+  description     String?
+  status          TaskStatus   @default(todo)
+  priority        TaskPriority @default(medium)
+  due_date        DateTime?    @db.Timestamptz(6)
+  estimated_hours Float?
+  actual_hours    Float?
+  progress        Int?         @default(0)
+  assigned_to     String?
+  created_by      String?
+  parent_task_id  String?
+  created_at      DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?    @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?    @db.Timestamptz(6)
+
+  organization Organization  @relation(fields: [organization_id], references: [id])
+  project      Project?      @relation(fields: [project_id], references: [id])
+  assignee     User?         @relation("TaskAssignedTo", fields: [assigned_to], references: [id])
+  creator      User?         @relation("TaskCreatedBy", fields: [created_by], references: [id])
+  parent_task  Task?         @relation("TaskSubtasks", fields: [parent_task_id], references: [id])
+  subtasks     Task[]        @relation("TaskSubtasks")
+  comments     TaskComment[]
+  time_logs    TimeLog[]
+
+  @@index([organization_id])
+  @@index([project_id])
+  @@index([assigned_to])
+  @@index([status])
+  @@index([priority])
+  @@index([due_date])
+  @@index([deleted_at])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id         String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  task_id    String
+  user_id    String
+  content    String
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+
+  task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([task_id])
+  @@index([user_id])
+  @@map("task_comments")
+}
+
+model TimeLog {
+  id              String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id String
+  user_id         String
+  task_id         String?
+  project_id      String?
+  date            DateTime? @default(now()) @db.Timestamptz(6)
+  hours           Float
+  description     String?
+  billable        Boolean?  @default(true)
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organization_id], references: [id])
+  user         User         @relation(fields: [user_id], references: [id])
+  task         Task?        @relation(fields: [task_id], references: [id])
+  project      Project?     @relation(fields: [project_id], references: [id])
+
+  @@index([organization_id])
+  @@index([user_id])
+  @@index([task_id])
+  @@index([project_id])
+  @@index([date])
+  @@map("time_logs")
+}
+
+model Notification {
+  id              String              @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id String
+  user_id         String
+  type            NotificationType    @default(info)
+  title           String              @db.VarChar(200)
+  message         String
+  channel         NotificationChannel @default(both)
+  link            String?             @db.VarChar(255)
+  read_at         DateTime?           @db.Timestamptz(6)
+  sent_at         DateTime?           @db.Timestamptz(6)
+  created_at      DateTime?           @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organization_id], references: [id])
+  user         User         @relation(fields: [user_id], references: [id])
+
+  @@index([organization_id])
+  @@index([user_id])
+  @@index([read_at])
+  @@index([created_at])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id              String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id String
+  user_id         String?
+  action          String    @db.VarChar(100)
+  entity_type     String    @db.VarChar(50)
+  entity_id       String
+  changes         Json?     @default("{}")
+  ip_address      String?   @db.VarChar(45)
+  user_agent      String?
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organization_id], references: [id])
+  user         User?        @relation(fields: [user_id], references: [id])
+
+  @@index([organization_id])
+  @@index([user_id])
+  @@index([entity_type])
+  @@index([entity_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("audit_logs")
+}
+
+enum Plan {
+  free
+  pro
+  enterprise
+}
+
+enum OrgStatus {
+  active
+  suspended
+  pending
+}
+
+enum UserRole {
+  super_admin
+  org_admin
+  team_member
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum ClientStatus {
+  active
+  inactive
+}
+
+enum Priority {
+  low
+  medium
+  high
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  in_review
+  completed
+  blocked
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  error
+}
+
+enum NotificationChannel {
+  email
+  in_app
+  both
+}

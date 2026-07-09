@@ -1,5 +1,5 @@
-const User = require('../models/Usermodel');
-const EmailService = require('../services/emailService');
+const User = require('../../../models/Usermodel');
+const EmailService = require('../../../services/emailService');
 const { validationResult } = require('express-validator');
 const crypto = require('crypto');
 const db = require('../config/db');
