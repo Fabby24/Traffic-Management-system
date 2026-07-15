@@ -11,6 +11,8 @@ const logger = require('./utils/logger');
 
 // Import routes
 const authRoutes = require('./modules/auth/routes/authRoutes');
+const dashboardRoutes = require('./modules/dashboard/routes/dashboardRoutes');
+const userRoutes = require('./modules/users/routes/userRoutes');
 
 const app = express();
 
@@ -51,6 +53,8 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/users', userRoutes);
 
 // Error handling
 app.use(notFoundHandler);

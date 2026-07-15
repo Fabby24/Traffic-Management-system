@@ -2,6 +2,7 @@ const AuthService = require('../../../services/authService');
 const { validationResult } = require('express-validator');
 const logger = require('../../../utils/logger');
 const { prisma } = require('../../../config/database')
+const passport = require('../../../config/passport');
 
 class AuthController {
     /**
@@ -94,10 +95,66 @@ class AuthController {
         }
     }
 
-    /**
-     * Get current user profile
-     * GET /api/v1/auth/profile
-     */
+    // googleCallback handles the callback from Google OAuth after user authentication
+    
+async googleCallback(req, res) {
+    try {
+        const user = req.user;
+        
+        if (!user) {
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=google_auth_failed`);
+        }
+
+        // Get user with organization
+        const fullUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: { organization: true },
+        });
+
+        if (!fullUser || !fullUser.organization) {
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=organization_not_found`);
+        }
+
+        // Check if organization is active
+        if (fullUser.organization.status !== 'active') {
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=organization_inactive`);
+        }
+
+        // Generate JWT
+        const token = AuthService.generateToken(fullUser, fullUser.organization);
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                organization_id: fullUser.organization_id,
+                user_id: fullUser.id,
+                action: 'google_login',
+                entity_type: 'user',
+                entity_id: fullUser.id,
+                changes: {
+                    email: fullUser.email,
+                    timestamp: new Date().toISOString(),
+                },
+            },
+        });
+
+        // Update last login
+        await prisma.user.update({
+            where: { id: fullUser.id },
+            data: { last_login: new Date() },
+        });
+
+        // Redirect to frontend with token
+        const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?token=${token}`;
+        logger.info(`Google login successful for: ${fullUser.email}`);
+        res.redirect(redirectUrl);
+    } catch (error) {
+        logger.error('Google callback error:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/login?error=google_auth_failed`);
+    }
+}
+
+
     async getProfile(req, res) {
         try {
             const user = await prisma.user.findUnique({

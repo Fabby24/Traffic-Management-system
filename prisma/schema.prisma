@@ -30,6 +30,7 @@ model Organization {
   time_logs     TimeLog[]
   notifications Notification[]
   audit_logs    AuditLog[]
+  invitations   Invitation[] // ✅ added
 
   @@unique([slug], map: "organizations_slug_unique")
   @@index([status])
@@ -92,6 +93,8 @@ model User {
   notifications         Notification[]
   audit_logs            AuditLog[]
   task_comments         TaskComment[]
+  invitations_received  Invitation[]         @relation("InvitationUser") // ✅ added
+  invitations_sent      Invitation[]         @relation("invitedBy")      // ✅ added
 
   @@unique([organization_id, email])
   @@index([organization_id])
@@ -314,6 +317,28 @@ model AuditLog {
   @@index([action])
   @@index([created_at])
   @@map("audit_logs")
+}
+
+model Invitation {
+  id              String    @id @default(cuid())
+  email           String    @db.VarChar(255)
+  token           String    @unique @db.VarChar(255)
+  expires_at      DateTime
+  used_at         DateTime?
+  user_id         String
+  invited_by      String
+  organization_id String
+  created_at      DateTime  @default(now())
+
+  // ✅ named relations matching opposite sides in User and Organization
+  user         User         @relation("InvitationUser", fields: [user_id], references: [id])
+  inviter      User         @relation("invitedBy", fields: [invited_by], references: [id])
+  organization Organization @relation(fields: [organization_id], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@index([expires_at])
+  @@map("invitations")
 }
 
 enum Plan {

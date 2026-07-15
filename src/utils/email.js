@@ -151,8 +151,11 @@ const sendPasswordResetEmail = async (email, token, firstName) => {
 /**
  * Send invitation email
  */
-const sendInvitationEmail = async (email, inviterName, orgName, role, token) => {
-    const inviteLink = `${process.env.FRONTEND_URL}/register?invite=${token}&email=${encodeURIComponent(email)}`;
+const sendInvitationEmail = async (email, orgName, role, token) => {
+    const frontendUrl = process.env.FRONTEND_URL;
+    const acceptInviteLink = `${frontendUrl}/accept-invite?token=${token}`;
+    
+    const roleDisplay = role === 'org_admin' ? 'Organization Admin' : 'Team Member';
     
     const subject = `You've been invited to join ${orgName} on Studio X`;
     const html = `
@@ -166,15 +169,12 @@ const sendInvitationEmail = async (email, inviterName, orgName, role, token) => 
             <h2 style="color: #FFFFFF; margin-bottom: 20px;">You've Been Invited!</h2>
             
             <p style="color: #94A3B8; margin-bottom: 20px;">
-                ${inviterName} has invited you to join <strong style="color: #7C3AED;">${orgName}</strong> on Studio X.
-            </p>
-            
-            <p style="color: #94A3B8; margin-bottom: 20px;">
-                You will be added as a <strong style="color: #7C3AED;">${role}</strong>.
+                <strong style="color: #FFFFFF;">${orgName}</strong> has invited you to join 
+                <strong style="color: #7C3AED;">${roleDisplay}</strong> on Studio X.
             </p>
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="${inviteLink}" 
+                <a href="${acceptInviteLink}" 
                    style="background: linear-gradient(135deg, #2563EB, #7C3AED); 
                           color: white; 
                           padding: 14px 40px; 
@@ -191,7 +191,7 @@ const sendInvitationEmail = async (email, inviterName, orgName, role, token) => 
                 Or copy and paste this link in your browser:
             </p>
             <p style="word-break: break-all; color: #64748B; background: #1E293B; padding: 12px; border-radius: 6px; font-size: 12px;">
-                ${inviteLink}
+                ${acceptInviteLink}
             </p>
             
             <hr style="border: none; border-top: 1px solid #1E293B; margin: 30px 0;">

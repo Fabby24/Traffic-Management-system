@@ -4,6 +4,7 @@ const AuthController = require('../controllers/authControllers');
 const authMiddleware = require('../../../middlewares/auth');
 const tenantMiddleware = require('../../../middlewares/tenant');
 const { validate } = require('../../../middlewares/validation');
+const passport = require('../../../config/passport');
 const {
     registerValidator,
     loginValidator,
@@ -11,6 +12,24 @@ const {
     resetPasswordValidator,
     changePasswordValidator
 } = require('../validators/authValidator');
+
+
+// Google OAuth routes
+router.get('/google',
+    passport.authenticate('google', {
+        scope: ['profile', 'email'],
+        prompt: 'select_account',
+        session: false,
+    })
+);
+
+router.get('/google/callback',
+    passport.authenticate('google', {
+        session: false,
+        failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_auth_failed`,
+    }),
+    AuthController.googleCallback
+);
 
 // Public routes
 router.post(
