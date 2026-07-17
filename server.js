@@ -1,6 +1,6 @@
 const dotenv = require('dotenv');
 dotenv.config();
-
+BigInt.prototype.toJSON = function() { return Number(this) }
 const app = require('./src/app');
 const logger = require('./src/utils/logger');
 const { prisma } = require('./src/config/database');
