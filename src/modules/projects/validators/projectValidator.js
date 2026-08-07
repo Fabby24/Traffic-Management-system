@@ -145,7 +145,7 @@ const updateProjectValidator = [
         .isFloat({ min: 0 }).withMessage('Estimated hours must be a positive number'),
 
     body('actual_hours')
-        .optional()
+        .optional({ nullable: true})
         .isFloat({ min: 0 }).withMessage('Actual hours must be a positive number'),
 
     body('budget')
@@ -188,8 +188,32 @@ const bulkActionValidator = [
         .withMessage('Invalid project IDs'),
 ];
 
+const addMemberValidator = [
+    param('id')
+        .isString().withMessage('Invalid project ID'),
+
+        body('user_id')
+            .isString().withMessage('User ID is required'),
+
+        body('role')
+            .optional()
+            .isIn(['project_manager', 'team_member', 'observer']).withMessage('Invalid role'),
+];
+
+const updateMemberValidator = [
+    param('id')
+        .isString().withMessage('Invalid project ID'),
+    param('userId')
+        .isString().withMessage('Invalid user ID'),
+    body('role')
+        .optional()
+        .isIn(['project_manager', 'team_member', 'observer']).withMessage('Invalid role'),
+];
+
 module.exports = {
     createProjectValidator,
     updateProjectValidator,
     bulkActionValidator,
+    addMemberValidator,
+    updateMemberValidator,
 };

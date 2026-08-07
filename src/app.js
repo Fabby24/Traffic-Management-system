@@ -13,7 +13,13 @@ const logger = require('./utils/logger');
 const authRoutes = require('./modules/auth/routes/authRoutes');
 const dashboardRoutes = require('./modules/dashboard/routes/dashboardRoutes');
 const userRoutes = require('./modules/users/routes/userRoutes');
+const clientRoutes = require('./modules/clients/routes/clientRoutes');
 const projectRoutes = require('./modules/projects/routes/projectRoutes');
+const taskRoutes = require('./modules/tasks/routes/taskRoutes');
+const notificationRoutes = require('./modules/notifications/routes/notificationRoutes');
+const organizationRoutes = require('./modules/organization/routes/organizationRoutes');
+const reportRoutes = require('./modules/reports/routes/reportRoutes');
+const timeLogRoutes = require('./modules/time-logs/routes/timeLogRoutes');
 
 
 const app = express();
@@ -26,13 +32,24 @@ app.use(cors({
 }));
 app.use(compression());
 
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
-    message: 'Too many requests from this IP, please try again later.'
+
+// General API limiter — generous, since dashboards fire many simultaneous reads
+const generalLimiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 min
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many requests from this IP, please try again later.',
 });
-app.use('/api', limiter);
+
+// Strict limiter for auth endpoints — login/register/password-reset abuse prevention
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many authentication attempts, please try again later.',
+});
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -54,10 +71,16 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/dashboard', dashboardRoutes);
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/projects', projectRoutes);
+app.use('/api/v1/auth', authLimiter, authRoutes);
+app.use('/api/v1/dashboard', generalLimiter, dashboardRoutes);
+app.use('/api/v1/users', generalLimiter, userRoutes);
+app.use('/api/v1/clients', generalLimiter, clientRoutes);
+app.use('/api/v1/projects', generalLimiter, projectRoutes);
+app.use('/api/v1/tasks', generalLimiter, taskRoutes);
+app.use('/api/v1/notifications', generalLimiter, notificationRoutes);
+app.use('/api/v1/organizations', generalLimiter, organizationRoutes);
+app.use('/api/v1/reports', generalLimiter, reportRoutes);
+app.use('/api/v1/time-logs', generalLimiter, timeLogRoutes);
 
 // Error handling
 app.use(notFoundHandler);

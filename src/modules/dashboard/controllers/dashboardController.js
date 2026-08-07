@@ -220,7 +220,7 @@ class DashboardController {
                     select: {
                         id: true,
                         name: true,
-                        status: true,
+                        lifecycle_status: true,
                         project_code: true,
                         priority: true,
                         completion_percentage: true,
@@ -273,86 +273,389 @@ class DashboardController {
         }
     }
 
-    async getTeamStats(req, res) {
-        try {
-            const userId = req.user.user_id;
-            const organizationId = req.user.organization_id;
+    /**
+ * Get Project Manager Dashboard Stats
+ * GET /api/v1/dashboard/manager
+ */
+async getManagerStats(req, res) {
+    try {
+        const organizationId = req.user.organization_id;
+        const userId = req.user.user_id;
 
-            const [
-                assignedTasks,
+        // Get all projects where user is a project manager
+        const managedProjects = await prisma.projectMember.findMany({
+            where: {
+                user_id: userId,
+                role: 'project_manager',
+                invitation_status: 'accepted',
+            },
+            include: {
+                project: {
+                    include: {
+                        _count: {
+                            select: {
+                                tasks: {
+                                    where: {
+                                        deleted_at: null,
+                                        status: { not: 'archived' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        const projectIds = managedProjects.map(mp => mp.project_id);
+
+        // Get task statistics for these projects
+        const taskStats = await prisma.task.groupBy({
+            by: ['status'],
+            where: {
+                project_id: { in: projectIds },
+                organization_id: organizationId,
+                deleted_at: null,
+            },
+            _count: true,
+        });
+
+        // Get tasks ready for review (assigned to this manager's projects)
+        const reviewQueue = await prisma.task.findMany({
+            where: {
+                project_id: { in: projectIds },
+                status: 'ready_for_review',
+                organization_id: organizationId,
+                deleted_at: null,
+            },
+            include: {
+                project: {
+                    select: {
+                        id: true,
+                        name: true,
+                        color: true,
+                    },
+                },
+                assigned_user: {
+                    select: {
+                        id: true,
+                        first_name: true,
+                        last_name: true,
+                        profile_image: true,
+                    },
+                },
+            },
+            orderBy: { updated_at: 'desc' },
+            take: 10,
+        });
+
+        // Get recent activity from managed projects
+        const recentActivity = await prisma.taskHistory.findMany({
+            where: {
+                task: {
+                    project_id: { in: projectIds },
+                },
+            },
+            orderBy: { created_at: 'desc' },
+            take: 15,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        first_name: true,
+                        last_name: true,
+                        profile_image: true,
+                    },
+                },
+                task: {
+                    select: {
+                        id: true,
+                        title: true,
+                        project_id: true,
+                    },
+                },
+            },
+        });
+
+        // Get team workload (tasks per team member in managed projects)
+        const teamWorkload = await prisma.task.groupBy({
+            by: ['assigned_to'],
+            where: {
+                project_id: { in: projectIds },
+                organization_id: organizationId,
+                deleted_at: null,
+                status: { notIn: ['completed', 'archived'] },
+            },
+            _count: true,
+        });
+
+        const userIds = teamWorkload.map(tw => tw.assigned_to).filter(id => id !== null);
+        const usersWithWorkload = await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                profile_image: true,
+            },
+        });
+
+        const workloadData = teamWorkload.map(tw => {
+            const user = usersWithWorkload.find(u => u.id === tw.assigned_to);
+            return {
+                user_id: tw.assigned_to,
+                first_name: user?.first_name || 'Unknown',
+                last_name: user?.last_name || '',
+                task_count: tw._count,
+            };
+        });
+
+        // Get upcoming deadlines
+        const upcomingDeadlines = await prisma.task.findMany({
+            where: {
+                project_id: { in: projectIds },
+                due_date: {
+                    gte: new Date(),
+                    lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                },
+                status: { notIn: ['completed', 'archived'] },
+                organization_id: organizationId,
+                deleted_at: null,
+            },
+            include: {
+                project: {
+                    select: {
+                        id: true,
+                        name: true,
+                        color: true,
+                    },
+                },
+                assigned_user: {
+                    select: {
+                        id: true,
+                        first_name: true,
+                        last_name: true,
+                    },
+                },
+            },
+            orderBy: { due_date: 'asc' },
+            take: 10,
+        });
+
+        res.json({
+            success: true,
+            data: {
+                managedProjects: managedProjects.map(mp => ({
+                    ...mp.project,
+                    taskCount: mp.project._count.tasks,
+                    role: mp.role,
+                })),
+                taskStats,
+                reviewQueue,
+                recentActivity,
+                teamWorkload: workloadData,
+                upcomingDeadlines,
+                totalProjects: managedProjects.length,
+                pendingReviews: reviewQueue.length,
+            },
+        });
+    } catch (error) {
+        logger.error('Project manager dashboard error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch dashboard stats',
+            error: error.message,
+        });
+    }
+}
+
+/**
+ * Get Team Member Dashboard Stats
+ * GET /api/v1/dashboard/team
+ */
+async getTeamStats(req, res) {
+    try {
+        const organizationId = req.user.organization_id;
+        const userId = req.user.user_id;
+
+        // Get all projects where user is a member
+        const userProjects = await prisma.projectMember.findMany({
+            where: {
+                user_id: userId,
+            },
+            include: {
+                project: {
+                    include: {
+                        _count: {
+                            select: {
+                                tasks: {
+                                    where: {
+                                        deleted_at: null,
+                                        status: { not: 'archived' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        const projectIds = userProjects.map(up => up.project_id);
+
+        // Get tasks assigned to user
+        const [
+            totalTasks,
+            completedTasks,
+            inProgressTasks,
+            overdueTasks,
+            readyForReviewTasks,
+            blockedTasks,
+            upcomingTasks,
+            recentActivity,
+        ] = await Promise.all([
+            // Total tasks
+            prisma.task.count({
+                where: {
+                    assigned_to: userId,
+                    organization_id: organizationId,
+                    deleted_at: null,
+                    status: { not: 'archived' },
+                },
+            }),
+            // Completed tasks
+            prisma.task.count({
+                where: {
+                    assigned_to: userId,
+                    status: 'completed',
+                    organization_id: organizationId,
+                    deleted_at: null,
+                },
+            }),
+            // In progress tasks
+            prisma.task.count({
+                where: {
+                    assigned_to: userId,
+                    status: 'in_progress',
+                    organization_id: organizationId,
+                    deleted_at: null,
+                },
+            }),
+            // Overdue tasks
+            prisma.task.count({
+                where: {
+                    assigned_to: userId,
+                    due_date: { lt: new Date() },
+                    status: { notIn: ['completed', 'archived'] },
+                    organization_id: organizationId,
+                    deleted_at: null,
+                },
+            }),
+            // Ready for review tasks
+            prisma.task.count({
+                where: {
+                    assigned_to: userId,
+                    status: 'ready_for_review',
+                    organization_id: organizationId,
+                    deleted_at: null,
+                },
+            }),
+            // Blocked tasks
+            prisma.task.count({
+                where: {
+                    assigned_to: userId,
+                    status: 'blocked',
+                    organization_id: organizationId,
+                    deleted_at: null,
+                },
+            }),
+            // Upcoming tasks (next 7 days)
+            prisma.task.findMany({
+                where: {
+                    assigned_to: userId,
+                    due_date: {
+                        gte: new Date(),
+                        lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                    },
+                    status: { notIn: ['completed', 'archived'] },
+                    organization_id: organizationId,
+                    deleted_at: null,
+                },
+                include: {
+                    project: {
+                        select: {
+                            id: true,
+                            name: true,
+                            color: true,
+                        },
+                    },
+                },
+                orderBy: { due_date: 'asc' },
+                take: 10,
+            }),
+            // Recent activity (tasks user has been involved in)
+            prisma.taskHistory.findMany({
+                where: {
+                    task: {
+                        assigned_to: userId,
+                    },
+                },
+                orderBy: { created_at: 'desc' },
+                take: 10,
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            first_name: true,
+                            last_name: true,
+                            profile_image: true,
+                        },
+                    },
+                    task: {
+                        select: {
+                            id: true,
+                            title: true,
+                            project_id: true,
+                        },
+                    },
+                },
+            }),
+        ]);
+
+        // Calculate productivity
+        const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+        res.json({
+            success: true,
+            data: {
+                myProjects: userProjects.map(up => ({
+                    ...up.project,
+                    role: up.role,
+                    taskCount: up.project._count.tasks,
+                })),
+                totalTasks,
                 completedTasks,
                 inProgressTasks,
                 overdueTasks,
-                upcomingDeadlines,
-                timeLoggedToday,
-                recentTasks,
-            ] = await Promise.all([
-                prisma.task.count({
-                    where: { assigned_to: userId, deleted_at: null },
-                }),
-                prisma.task.count({
-                    where: { assigned_to: userId, status: 'completed', deleted_at: null },
-                }),
-                prisma.task.count({
-                    where: { assigned_to: userId, status: 'in_progress', deleted_at: null },
-                }),
-                prisma.task.count({
-                    where: {
-                        assigned_to: userId,
-                        due_date: { lt: new Date() },
-                        status: { not: 'completed' },
-                        deleted_at: null,
-                    },
-                }),
-                prisma.task.findMany({
-                    where: {
-                        assigned_to: userId,
-                        due_date: {
-                            gte: new Date(),
-                            lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                        },
-                        deleted_at: null,
-                    },
-                    orderBy: { due_date: 'asc' },
-                    take: 5,
-                    include: { project: { select: { name: true } } },
-                }),
-                prisma.timeLog.aggregate({
-                    where: {
-                        user_id: userId,
-                        date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-                    },
-                    _sum: { hours: true },
-                }),
-                prisma.task.findMany({
-                    where: { assigned_to: userId, deleted_at: null },
-                    orderBy: { updated_at: 'desc' },
-                    take: 5,
-                    include: { project: { select: { name: true } } },
-                }),
-            ]);
-
-            res.json({
-                success: true,
-                data: {
-                    assignedTasks,
-                    completedTasks,
-                    inProgressTasks,
-                    overdueTasks,
-                    upcomingDeadlines,
-                    timeLoggedToday: timeLoggedToday._sum.hours || 0,
-                    recentTasks,
-                },
-            });
-
-        } catch (error) {
-            logger.error('Team dashboard error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch dashboard stats',
-            });
-        }
+                readyForReviewTasks,
+                blockedTasks,
+                upcomingTasks,
+                recentActivity,
+                completionRate,
+            },
+        });
+    } catch (error) {
+        logger.error('Team dashboard error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch dashboard stats',
+            error: error.message,
+        });
     }
+    }
+
+    
+           
 }
 
 module.exports = new DashboardController();

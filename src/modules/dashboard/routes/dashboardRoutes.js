@@ -23,6 +23,13 @@ router.get(
     DashboardController.getAdminStats
 );
 
+//project manager 
+router.get(
+    '/manager',
+    rbacMiddleware(['tasks:read']),
+    DashboardController.getManagerStats
+)
+
 // Team Member Dashboard
 router.get(
     '/team',

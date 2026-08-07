@@ -18,6 +18,24 @@ router.use(tenantMiddleware);
 // Project statistics (accessible by all authenticated users)
 router.get('/stats', ProjectController.getProjectStats);
 
+router.get('/my', ProjectController.getMyProjects);
+
+router.get('/:id/members', ProjectController.getProjectMembers);
+
+router.post('/:id/members', rbacMiddleware(['projects:write']), ProjectController.addMember);
+
+router.delete(
+    '/:id/members/:userId',
+    rbacMiddleware(['projects:write']),
+    ProjectController.removeMember
+);
+
+router.patch(
+    '/:id/members/:userId/role',
+    rbacMiddleware(['projects:write']),
+    ProjectController.updateMemberRole
+);
+
 // Bulk actions (Organization Admin only)
 router.post(
     '/bulk-archive',

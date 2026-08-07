@@ -26,11 +26,12 @@ model Organization {
   users         User[]
   clients       Client[]
   projects      Project[]
+  departments   Department[]
   tasks         Task[]
   time_logs     TimeLog[]
   notifications Notification[]
   audit_logs    AuditLog[]
-  invitations   Invitation[] // ✅ added
+  invitations   Invitation[]
 
   @@unique([slug], map: "organizations_slug_unique")
   @@index([status])
@@ -39,26 +40,26 @@ model Organization {
 }
 
 model OrganizationSettings {
-  id                         String    @id @default(dbgenerated("gen_random_uuid()::text"))
-  organization_id            String    @unique
-  brand_color                String?   @default("#2563EB") @db.VarChar(50)
-  brand_secondary            String?   @default("#7C3AED") @db.VarChar(50)
-  logo_url                   String?   @db.VarChar(255)
-  favicon_url                String?   @db.VarChar(255)
-  allow_self_registration    Boolean?  @default(true)
-  require_email_verification Boolean?  @default(true)
-  allow_google_auth          Boolean?  @default(false)
-  allow_microsoft_auth       Boolean?  @default(false)
-  task_assignment_email      Boolean?  @default(true)
-  task_deadline_reminder     Boolean?  @default(true)
-  project_update_email       Boolean?  @default(true)
-  billing_email              String?   @db.VarChar(255)
-  billing_contact            String?   @db.VarChar(255)
-  tax_id                     String?   @db.VarChar(50)
-  currency                   String?   @default("USD") @db.VarChar(10)
-  payment_terms              String?   @db.VarChar(50)
-  created_at                 DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at                 DateTime? @default(now()) @db.Timestamptz(6)
+  id                          String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  organization_id             String    @unique
+  brand_color                 String?   @default("#2563EB") @db.VarChar(50)
+  brand_secondary             String?   @default("#7C3AED") @db.VarChar(50)
+  logo_url                    String?   @db.VarChar(255)
+  favicon_url                 String?   @db.VarChar(255)
+  allow_self_registration     Boolean?  @default(true)
+  require_email_verification  Boolean?  @default(true)
+  allow_google_auth           Boolean?  @default(false)
+  allow_microsoft_auth        Boolean?  @default(false)
+  task_assignment_email       Boolean?  @default(true)
+  task_deadline_reminder      Boolean?  @default(true)
+  project_update_email        Boolean?  @default(true)
+  billing_email               String?   @db.VarChar(255)
+  billing_contact             String?   @db.VarChar(255)
+  tax_id                      String?   @db.VarChar(50)
+  currency                    String?   @default("USD") @db.VarChar(10)
+  payment_terms               String?   @db.VarChar(50)
+  created_at                  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime? @default(now()) @db.Timestamptz(6)
 
   organization Organization @relation(fields: [organization_id], references: [id])
 
@@ -82,25 +83,31 @@ model User {
   updated_at      DateTime?  @default(now()) @db.Timestamptz(6)
   deleted_at      DateTime?  @db.Timestamptz(6)
 
-  organization          Organization         @relation(fields: [organization_id], references: [id])
-  password_reset_tokens PasswordResetToken[]
-  assigned_clients      Client[]             @relation("ClientAssignedTo")
-  created_clients       Client[]             @relation("ClientCreatedBy")
-  assigned_tasks        Task[]               @relation("TaskAssignedTo")
-  created_tasks         Task[]               @relation("TaskCreatedBy")
-  managed_projects      Project[]            @relation("ProjectManager")
-  created_projects      Project[]            @relation("ProjectCreatedBy")
-  updated_projects      Project[]            @relation("ProjectUpdatedBy")
-  project_memberships   ProjectMember[]
-  project_activities    ProjectActivity[]
-  project_notes         ProjectNote[]
-  project_attachments   ProjectAttachment[]
-  time_logs             TimeLog[]
-  notifications         Notification[]
-  audit_logs            AuditLog[]
-  task_comments         TaskComment[]
-  invitations_received  Invitation[]         @relation("InvitationUser") // ✅ added
-  invitations_sent      Invitation[]         @relation("invitedBy")      // ✅ added
+  organization           Organization         @relation(fields: [organization_id], references: [id])
+  password_reset_tokens  PasswordResetToken[]
+  assigned_clients       Client[]             @relation("ClientAssignedTo")
+  created_clients        Client[]             @relation("ClientCreatedBy")
+  assigned_tasks         Task[]               @relation("TaskAssignedTo")
+  created_tasks          Task[]               @relation("TaskCreatedBy")
+  reviewed_tasks         Task[]               @relation("TaskReviewedBy")
+  created_projects       Project[]            @relation("ProjectCreatedBy")
+  updated_projects       Project[]            @relation("ProjectUpdatedBy")
+  managed_projects       Project[]            @relation("ProjectManager")
+  project_memberships    ProjectMember[]
+  project_activities     ProjectActivity[]
+  project_notes          ProjectNote[]
+  project_attachments    ProjectAttachment[]
+  task_history           TaskHistory[]
+  task_comments          TaskComment[]
+  task_attachments       TaskAttachment[]
+  task_dependencies      TaskDependency[]     @relation("TaskDependencyCreatedBy")
+  department_managed     Department[]         @relation("DepartmentManager")
+  project_member_invites ProjectMember[]      @relation("ProjectMemberInvitedBy")
+  time_logs              TimeLog[]
+  notifications          Notification[]
+  audit_logs             AuditLog[]
+  invitations_received   Invitation[]         @relation("InvitationUser")
+  invitations_sent       Invitation[]         @relation("invitedBy")
 
   @@unique([organization_id, email])
   @@index([organization_id])
@@ -136,7 +143,7 @@ model Client {
   website           String?      @db.VarChar(255)
   industry          String?      @db.VarChar(100)
   logo              String?      @db.VarChar(255)
-  tags              Json?        @default("[]")
+  tags              Json         @default("[]")
   status            ClientStatus @default(active)
   priority          Priority     @default(medium)
   preferred_contact String?      @default("email") @db.VarChar(50)
@@ -167,34 +174,198 @@ model Client {
   @@map("clients")
 }
 
+model Invitation {
+  id              String    @id @default(cuid())
+  email           String    @db.VarChar(255)
+  token           String    @unique @db.VarChar(255)
+  expires_at      DateTime
+  used_at         DateTime?
+  user_id         String
+  invited_by      String
+  organization_id String
+  created_at      DateTime  @default(now())
+
+  user         User         @relation("InvitationUser", fields: [user_id], references: [id])
+  inviter      User         @relation("invitedBy", fields: [invited_by], references: [id])
+  organization Organization @relation(fields: [organization_id], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@index([expires_at])
+  @@map("invitations")
+}
+
+model Project {
+  id                    String          @id @default(cuid())
+  organization_id       String          @map("organization_id")
+  client_id             String?         @map("client_id")
+  project_code          String          @unique @map("project_code")
+  name                  String          @db.VarChar(200)
+  slug                  String          @db.VarChar(200)
+  description           String?         @db.Text
+  lifecycle_status      LifecycleStatus @default(draft)
+  priority              ProjectPriority @default(medium)
+  project_type          ProjectType     @default(web_design)
+  department            DepartmentType  @default(design)
+  health_status         HealthStatus    @default(on_track)
+  start_date            DateTime?       @map("start_date")
+  due_date              DateTime?       @map("due_date")
+  delivery_date         DateTime?       @map("delivery_date")
+  completion_percentage Int             @default(0)
+  estimated_hours       Float?          @map("estimated_hours")
+  actual_hours          Float?          @map("actual_hours")
+  budget                Decimal?        @db.Decimal(12, 2)
+  color                 String?         @db.VarChar(7)
+  billable              Boolean         @default(true)
+  is_internal           Boolean         @default(false)
+  project_notes         String?         @db.Text
+  created_by            String?         @map("created_by")
+  updated_by            String?         @map("updated_by")
+  manager_id            String?         @map("manager_id")
+  created_at            DateTime        @default(now()) @map("created_at")
+  updated_at            DateTime        @updatedAt @map("updated_at")
+  deleted_at            DateTime?       @map("deleted_at")
+  archived              Boolean         @default(false)
+
+  organization    Organization        @relation(fields: [organization_id], references: [id])
+  client          Client?             @relation(fields: [client_id], references: [id])
+  created_by_user User?               @relation("ProjectCreatedBy", fields: [created_by], references: [id])
+  updated_by_user User?               @relation("ProjectUpdatedBy", fields: [updated_by], references: [id])
+  manager         User?               @relation("ProjectManager", fields: [manager_id], references: [id])
+  team_members    ProjectMember[]
+  tasks           Task[]
+  time_logs       TimeLog[]
+  activities      ProjectActivity[]
+  notes           ProjectNote[]
+  attachments     ProjectAttachment[]
+
+  @@unique([organization_id, name])
+  @@index([organization_id, slug])
+  @@index([client_id])
+  @@index([lifecycle_status])
+  @@index([priority])
+  @@index([archived])
+  @@index([project_type])
+  @@index([department])
+  @@index([health_status])
+  @@index([deleted_at])
+  @@index([manager_id])
+  @@map("projects")
+}
+
+model ProjectActivity {
+  id          String   @id @default(cuid())
+  project_id  String   @map("project_id")
+  user_id     String?  @map("user_id")
+  action      String   @db.VarChar(100)
+  description String?  @db.Text
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [project_id], references: [id])
+  user    User?   @relation(fields: [user_id], references: [id])
+
+  @@index([project_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@map("project_activities")
+}
+
+model ProjectNote {
+  id         String   @id @default(cuid())
+  project_id String   @map("project_id")
+  user_id    String   @map("user_id")
+  content    String   @db.Text
+  is_pinned  Boolean  @default(false)
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [project_id], references: [id])
+  user    User    @relation(fields: [user_id], references: [id])
+
+  @@index([project_id])
+  @@index([user_id])
+  @@map("project_notes")
+}
+
+model ProjectAttachment {
+  id          String   @id @default(cuid())
+  project_id  String   @map("project_id")
+  user_id     String   @map("user_id")
+  filename    String   @db.VarChar(255)
+  file_size   Int
+  file_type   String   @db.VarChar(100)
+  file_path   String   @db.VarChar(500)
+  uploaded_at DateTime @default(now()) @map("uploaded_at")
+
+  project Project @relation(fields: [project_id], references: [id])
+  user    User    @relation(fields: [user_id], references: [id])
+
+  @@index([project_id])
+  @@index([user_id])
+  @@map("project_attachments")
+}
+
+model ProjectMember {
+  id                String            @id @default(cuid())
+  project_id        String            @map("project_id")
+  user_id           String            @map("user_id")
+  role              ProjectMemberRole @default(team_member)
+  joined_at         DateTime          @default(now()) @map("joined_at")
+  invitation_status InvitationStatus  @default(pending)
+  invited_by        String?           @map("invited_by")
+  created_at        DateTime          @default(now()) @map("created_at")
+  updated_at        DateTime          @default(now()) @map("updated_at")
+
+  project Project @relation(fields: [project_id], references: [id])
+  user    User    @relation(fields: [user_id], references: [id])
+  inviter User?   @relation("ProjectMemberInvitedBy", fields: [invited_by], references: [id])
+
+  @@unique([project_id, user_id])
+  @@index([project_id])
+  @@index([user_id])
+  @@index([role])
+  @@index([invitation_status])
+  @@map("project_members")
+}
 
 model Task {
-  id              String       @id @default(dbgenerated("gen_random_uuid()::text"))
-  organization_id String
-  project_id      String?
-  title           String       @db.VarChar(200)
-  description     String?
-  status          TaskStatus   @default(todo)
-  priority        TaskPriority @default(medium)
-  due_date        DateTime?    @db.Timestamptz(6)
-  estimated_hours Float?
-  actual_hours    Float?
-  progress        Int?         @default(0)
-  assigned_to     String?
-  created_by      String?
-  parent_task_id  String?
-  created_at      DateTime?    @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime?    @default(now()) @db.Timestamptz(6)
-  deleted_at      DateTime?    @db.Timestamptz(6)
+  id                String       @id @default(cuid())
+  organization_id   String       @map("organization_id")
+  project_id        String?      @map("project_id")
+  parent_task_id    String?      @map("parent_task_id")
+  title             String       @db.VarChar(200)
+  description       String?      @db.Text
+  status            TaskStatus   @default(todo)
+  priority          TaskPriority @default(medium)
+  progress          Int?         @default(0)
+  estimated_hours   Float?       @map("estimated_hours")
+  actual_hours      Float?       @map("actual_hours")
+  due_date          DateTime?    @map("due_date")
+  assigned_to       String?      @map("assigned_to")
+  created_by        String?      @map("created_by")
+  reviewed_by       String?      @map("reviewed_by")
+  reviewed_at       DateTime?    @map("reviewed_at")
+  feedback          String?      @db.Text
+  blocked_reason    String?      @map("blocked_reason") @db.Text
+  archived_at       DateTime?    @map("archived_at")
+  created_at        DateTime     @default(now()) @map("created_at")
+  updated_at        DateTime     @updatedAt @map("updated_at")
+  deleted_at        DateTime?    @map("deleted_at")
 
-  organization Organization  @relation(fields: [organization_id], references: [id])
-  project      Project?      @relation(fields: [project_id], references: [id])
-  assignee     User?         @relation("TaskAssignedTo", fields: [assigned_to], references: [id])
-  creator      User?         @relation("TaskCreatedBy", fields: [created_by], references: [id])
-  parent_task  Task?         @relation("TaskSubtasks", fields: [parent_task_id], references: [id])
-  subtasks     Task[]        @relation("TaskSubtasks")
-  comments     TaskComment[]
-  time_logs    TimeLog[]
+  organization     Organization     @relation(fields: [organization_id], references: [id])
+  project          Project?         @relation(fields: [project_id], references: [id])
+  parent_task      Task?            @relation("TaskSubtasks", fields: [parent_task_id], references: [id])
+  subtasks         Task[]           @relation("TaskSubtasks")
+  assigned_user    User?            @relation("TaskAssignedTo", fields: [assigned_to], references: [id])
+  created_by_user  User?            @relation("TaskCreatedBy", fields: [created_by], references: [id])
+  reviewed_by_user User?            @relation("TaskReviewedBy", fields: [reviewed_by], references: [id])
+  history          TaskHistory[]
+  comments         TaskComment[]
+  attachments      TaskAttachment[]
+  dependencies     TaskDependency[] @relation("TaskDependencies")
+  dependent_tasks  TaskDependency[] @relation("TaskDependentTasks")
+  time_logs        TimeLog[]
 
   @@index([organization_id])
   @@index([project_id])
@@ -206,20 +377,82 @@ model Task {
   @@map("tasks")
 }
 
-model TaskComment {
-  id         String    @id @default(dbgenerated("gen_random_uuid()::text"))
-  task_id    String
-  user_id    String
-  content    String
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+model TaskHistory {
+  id          String   @id @default(cuid())
+  task_id     String   @map("task_id")
+  user_id     String   @map("user_id")
+  action      String   @db.VarChar(100)
+  from_status String?  @map("from_status") @db.VarChar(50)
+  to_status   String?  @map("to_status") @db.VarChar(50)
+  description String?  @db.Text
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now()) @map("created_at")
 
-  task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [task_id], references: [id])
   user User @relation(fields: [user_id], references: [id])
 
   @@index([task_id])
   @@index([user_id])
+  @@index([created_at])
+  @@map("task_history")
+}
+
+model TaskDependency {
+  id                 String         @id @default(cuid())
+  task_id            String         @map("task_id")
+  depends_on_task_id String         @map("depends_on_task_id")
+  dependency_type    DependencyType @default(blocked_by)
+  created_by         String?        @map("created_by")
+  created_at         DateTime       @default(now()) @map("created_at")
+
+  task            Task  @relation("TaskDependencies", fields: [task_id], references: [id])
+  depends_on_task Task  @relation("TaskDependentTasks", fields: [depends_on_task_id], references: [id])
+  created_by_user User? @relation("TaskDependencyCreatedBy", fields: [created_by], references: [id])
+
+  @@unique([task_id, depends_on_task_id])
+  @@index([task_id])
+  @@index([depends_on_task_id])
+  @@map("task_dependencies")
+}
+
+model TaskComment {
+  id                String       @id @default(cuid())
+  task_id           String       @map("task_id")
+  user_id           String       @map("user_id")
+  content           String       @db.Text
+  parent_comment_id String?      @map("parent_comment_id")
+  is_internal       Boolean      @default(false)
+  created_at        DateTime     @default(now()) @map("created_at")
+  updated_at        DateTime     @updatedAt @map("updated_at")
+
+  task           Task          @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [user_id], references: [id])
+  parent_comment TaskComment?  @relation("TaskCommentParent", fields: [parent_comment_id], references: [id])
+  replies        TaskComment[] @relation("TaskCommentParent")
+
+  @@index([task_id])
+  @@index([user_id])
+  @@index([parent_comment_id])
   @@map("task_comments")
+}
+
+model TaskAttachment {
+  id             String   @id @default(cuid())
+  task_id        String   @map("task_id")
+  user_id        String   @map("user_id")
+  filename       String   @db.VarChar(255)
+  file_size      Int
+  file_type      String   @db.VarChar(100)
+  file_path      String   @db.VarChar(500)
+  thumbnail_path String?  @map("thumbnail_path") @db.VarChar(500)
+  uploaded_at    DateTime @default(now()) @map("uploaded_at")
+
+  task Task @relation(fields: [task_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([task_id])
+  @@index([user_id])
+  @@map("task_attachments")
 }
 
 model TimeLog {
@@ -232,6 +465,8 @@ model TimeLog {
   hours           Float
   description     String?
   billable        Boolean?  @default(true)
+  start_time      DateTime? @db.Timestamptz(6)
+  end_time        DateTime? @db.Timestamptz(6)
   created_at      DateTime? @default(now()) @db.Timestamptz(6)
   updated_at      DateTime? @default(now()) @db.Timestamptz(6)
 
@@ -245,6 +480,7 @@ model TimeLog {
   @@index([task_id])
   @@index([project_id])
   @@index([date])
+  @@index([end_time])
   @@map("time_logs")
 }
 
@@ -295,154 +531,24 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-model Invitation {
+model Department {
   id              String    @id @default(cuid())
-  email           String    @db.VarChar(255)
-  token           String    @unique @db.VarChar(255)
-  expires_at      DateTime
-  used_at         DateTime?
-  user_id         String
-  invited_by      String
-  organization_id String
-  created_at      DateTime  @default(now())
+  organization_id String    @map("organization_id")
+  name            String    @db.VarChar(100)
+  description     String?   @db.Text
+  manager_id      String?   @map("manager_id")
+  created_at      DateTime  @default(now()) @map("created_at")
+  updated_at      DateTime  @updatedAt @map("updated_at")
+  deleted_at      DateTime? @map("deleted_at")
 
-  
-  user         User         @relation("InvitationUser", fields: [user_id], references: [id])
-  inviter      User         @relation("invitedBy", fields: [invited_by], references: [id])
   organization Organization @relation(fields: [organization_id], references: [id])
-
-  @@index([token])
-  @@index([email])
-  @@index([expires_at])
-  @@map("invitations")
-}
-
-model Project {
-  id                    String          @id @default(cuid())
-  organization_id       String          @map("organization_id")
-  client_id             String?         @map("client_id")
-  project_code          String          @unique @map("project_code")
-  name                  String          @db.VarChar(200)
-  slug                  String          @unique @db.VarChar(200)
-  description           String?         @db.Text
-  status                ProjectStatus   @default(planning)
-  priority              ProjectPriority @default(medium)
-  project_type          ProjectType     @default(web_design)
-  department            Department      @default(design)
-  health_status         HealthStatus    @default(on_track)
-  start_date            DateTime?       @map("start_date")
-  due_date              DateTime?       @map("due_date")
-  delivery_date         DateTime?       @map("delivery_date")
-  completion_percentage Int             @default(0)
-  estimated_hours       Float?          @map("estimated_hours")
-  actual_hours          Float?          @map("actual_hours")
-  budget                Decimal?        @db.Decimal(12, 2)
-  color                 String?         @db.VarChar(7)
-  billable              Boolean         @default(true)
-  is_internal           Boolean         @default(false)
-  archived              Boolean         @default(false)
-  project_notes                 String?         @db.Text
-  manager_id            String?         @map("manager_id")
-  created_by            String?         @map("created_by")
-  updated_by            String?         @map("updated_by")
-  created_at            DateTime        @default(now()) @map("created_at")
-  updated_at            DateTime        @updatedAt @map("updated_at")
-  deleted_at            DateTime?       @map("deleted_at")
-
-  // Relations
-  organization          Organization    @relation(fields: [organization_id], references: [id])
-  client                Client?         @relation(fields: [client_id], references: [id])
-  manager               User?           @relation("ProjectManager", fields: [manager_id], references: [id])
-  created_by_user       User?           @relation("ProjectCreatedBy", fields: [created_by], references: [id])
-  updated_by_user       User?           @relation("ProjectUpdatedBy", fields: [updated_by], references: [id])
-  team_members          ProjectMember[]
-  tasks                 Task[]
-  activities            ProjectActivity[]
-  notes                 ProjectNote[]
-  attachments           ProjectAttachment[]
-  time_logs             TimeLog[]
+  manager      User?        @relation("DepartmentManager", fields: [manager_id], references: [id])
 
   @@unique([organization_id, name])
-  @@map("projects")
   @@index([organization_id])
-  @@index([client_id])
   @@index([manager_id])
-  @@index([status])
-  @@index([priority])
-  @@index([project_type])
-  @@index([department])
-  @@index([health_status])
-  @@index([archived])
   @@index([deleted_at])
-}
-
-model ProjectMember {
-  id              String   @id @default(cuid())
-  project_id      String   @map("project_id")
-  user_id         String   @map("user_id")
-  role            String?  @db.VarChar(50)
-  joined_at       DateTime @default(now()) @map("joined_at")
-
-  project         Project  @relation(fields: [project_id], references: [id])
-  user            User     @relation(fields: [user_id], references: [id])
-
-  @@unique([project_id, user_id])
-  @@map("project_members")
-  @@index([project_id])
-  @@index([user_id])
-}
-
-model ProjectActivity {
-  id              String   @id @default(cuid())
-  project_id      String   @map("project_id")
-  user_id         String?  @map("user_id")
-  action          String   @db.VarChar(100)
-  description     String?  @db.Text
-  metadata        Json     @default("{}")
-  created_at      DateTime @default(now()) @map("created_at")
-
-  project         Project  @relation(fields: [project_id], references: [id])
-  user            User?    @relation(fields: [user_id], references: [id])
-
-  @@map("project_activities")
-  @@index([project_id])
-  @@index([user_id])
-  @@index([created_at])
-}
-
-model ProjectNote {
-  id              String   @id @default(cuid())
-  project_id      String   @map("project_id")
-  user_id         String   @map("user_id")
-  content         String   @db.Text
-  is_pinned       Boolean  @default(false)
-  created_at      DateTime @default(now()) @map("created_at")
-  updated_at      DateTime @updatedAt @map("updated_at")
-
-  project         Project  @relation(fields: [project_id], references: [id])
-  user            User     @relation(fields: [user_id], references: [id])
-
-  @@map("project_notes")
-  @@index([project_id])
-  @@index([user_id])
-}
-
-model ProjectAttachment {
-  id              String   @id @default(cuid())
-  project_id      String   @map("project_id")
-  user_id         String   @map("user_id")
-  filename        String   @db.VarChar(255)
-  file_size       Int
-  file_type       String   @db.VarChar(100)
-  file_path       String   @db.VarChar(500)
-  uploaded_at     DateTime @default(now()) @map("uploaded_at")
-
-  project         Project  @relation(fields: [project_id], references: [id])
-  user            User     @relation(fields: [user_id], references: [id])
-
-  @@map("project_attachments")
-  @@index([project_id])
-  @@index([user_id])
+  @@map("departments")
 }
 
 enum Plan {
@@ -482,9 +588,11 @@ enum Priority {
 enum TaskStatus {
   todo
   in_progress
-  in_review
-  completed
+  ready_for_review
+  needs_changes
   blocked
+  completed
+  archived
 }
 
 enum TaskPriority {
@@ -507,14 +615,6 @@ enum NotificationChannel {
   both
 }
 
-enum ProjectStatus {
-  planning
-  active
-  on_hold
-  completed
-  cancelled
-}
-
 enum ProjectPriority {
   low
   medium
@@ -535,7 +635,7 @@ enum ProjectType {
   other
 }
 
-enum Department {
+enum DepartmentType {
   design
   development
   marketing
@@ -548,4 +648,32 @@ enum HealthStatus {
   on_track
   at_risk
   delayed
+}
+
+enum LifecycleStatus {
+  draft
+  planning
+  active
+  on_hold
+  completed
+  archived
+  cancelled
+}
+
+enum ProjectMemberRole {
+  project_manager
+  team_member
+  observer
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum DependencyType {
+  blocked_by
+  required_for
+  duplicates
 }

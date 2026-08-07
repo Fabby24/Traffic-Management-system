@@ -18,7 +18,7 @@ class AuthService {
         } = userData;
 
         try {
-            // ✅ Fix 1 — email is not unique alone, use findFirst instead of findUnique
+        
             const existingOrg = await prisma.organization.findFirst({
                 where: { slug: organization_slug }
             });
@@ -42,7 +42,7 @@ class AuthService {
                     }
                 });
 
-                // ✅ Fix 2 — model is OrganizationSettings not OrganizationSetting
+            
                 await tx.organizationSettings.create({
                     data: {
                         organization_id: organization.id,
@@ -122,7 +122,7 @@ class AuthService {
 
     static async login(email, password) {
         try {
-            // ✅ Fix 4 — email alone not unique, use findFirst
+            
             const user = await prisma.user.findFirst({
                 where: {
                     email,
@@ -218,6 +218,13 @@ class AuthService {
                 'settings:read', 'settings:write',
                 'reports:read'
             ],
+            project_manager: [
+                'clients:read',
+                'projects:read', 'projects:write',
+                'tasks:read', 'tasks:write', 'tasks:delete',
+                'time:read',
+                'reports:read'
+            ],
             team_member: [
                 'tasks:read', 'tasks:write',
                 'projects:read',
@@ -230,7 +237,6 @@ class AuthService {
 
     static async requestPasswordReset(email) {
         try {
-            // ✅ Fix 5 — use findFirst for email lookup
             const user = await prisma.user.findFirst({
                 where: { email, deleted_at: null },
                 include: { organization: true }
@@ -244,7 +250,7 @@ class AuthService {
             const expiresAt = new Date();
             expiresAt.setHours(expiresAt.getHours() + 24);
 
-            // ✅ Fix 6 — correct model name is passwordResetToken not passwordReset
+            
             await prisma.passwordResetToken.deleteMany({
                 where: { user_id: user.id }
             });
@@ -277,7 +283,7 @@ class AuthService {
                     expires_at: { gt: new Date() },
                     used_at: null
                 },
-                include: { user: true } // ✅ Fix 8 — include user so we can get organization_id
+                include: { user: true }
             });
 
             if (!resetToken) {
@@ -302,7 +308,7 @@ class AuthService {
 
             await prisma.auditLog.create({
                 data: {
-                    organization_id: resetToken.user.organization_id, // ✅ Fix 9 — use included user
+                    organization_id: resetToken.user.organization_id, 
                     user_id: resetToken.user_id,
                     action: 'password_reset',
                     entity_type: 'user',

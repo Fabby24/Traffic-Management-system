@@ -45,7 +45,7 @@ class ProjectService {
         };
 
         if (userRole === 'team_member') {
-            where.team_member = {
+            where.team_members = {
                 some: {
                     user_id: userId,
                 }
@@ -53,7 +53,7 @@ class ProjectService {
         }
 
         if (assignedToMe && userRole ==='team_member') {
-            where.team_member = {
+            where.team_members = {
                 some: {
                     user_id: userId,
                 }
@@ -73,7 +73,7 @@ class ProjectService {
         }
 
         if (status) {
-            where.status = status;
+            where.lifecycle_status = status;
         }
 
         if (priority) {
@@ -324,7 +324,7 @@ class ProjectService {
                     organization_id: organizationId,
                     deleted_at: null,
                     archived: false,
-                    status: 'active',
+                    lifecycle_status: 'active',
                 },
             }),
             // Completed projects
@@ -333,7 +333,7 @@ class ProjectService {
                     organization_id: organizationId,
                     deleted_at: null,
                     archived: false,
-                    status: 'completed',
+                    lifecycle_status: 'completed',
                 },
             }),
             // Overdue projects
@@ -342,7 +342,7 @@ class ProjectService {
                     organization_id: organizationId,
                     deleted_at: null,
                     archived: false,
-                    status: 'active',
+                    lifecycle_status: 'active',
                     due_date: {
                         lt: new Date(),
                     },
@@ -372,7 +372,7 @@ class ProjectService {
             }),
             // Status distribution
             prisma.project.groupBy({
-                by: ['status'],
+                by: ['lifecycle_status'],
                 where: {
                     organization_id: organizationId,
                     deleted_at: null,
@@ -483,7 +483,7 @@ class ProjectService {
                 slug,
                 client_id: client_id || null,
                 description: description || '',
-                status: status || 'planning',
+                lifecycle_status: status || 'planning',
                 priority: priority || 'medium',
                 project_type: project_type || 'web_design',
                 department: department || 'design',
@@ -508,6 +508,7 @@ class ProjectService {
                 data: team_member_ids.map(memberId => ({
                     project_id: project.id,
                     user_id: memberId,
+                    invitation_status: 'accepted',
                 })),
             });
         }
@@ -589,7 +590,7 @@ class ProjectService {
                 name: name || existing.name,
                 client_id: client_id !== undefined ? client_id || null : existing.client_id,
                 description: description !== undefined ? description : existing.description,
-                status: status || existing.status,
+                lifecycle_status: status || existing.lifecycle_status,
                 priority: priority || existing.priority,
                 project_type: project_type || existing.project_type,
                 department: department || existing.department,
@@ -623,6 +624,7 @@ class ProjectService {
                     data: team_member_ids.map(memberId => ({
                         project_id: projectId,
                         user_id: memberId,
+                        invitation_status: 'accepted',
                     })),
                 });
             }
