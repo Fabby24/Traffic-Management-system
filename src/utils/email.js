@@ -1,30 +1,39 @@
-const { Resend } = require('resend');
+const brevo = require('@getbrevo/brevo');
 const logger = require('./logger');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const apiInstance = new brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
 
 /**
- * Send email via Resend (HTTPS API — works on Render, unlike raw SMTP)
+ * Parses "Name <email@example.com>" into { name, email } for Brevo's API.
+ */
+const parseFromAddress = (raw) => {
+    const match = /^(.*)<(.+)>$/.exec(raw || '');
+    if (match) {
+        return { name: match[1].trim().replace(/^"|"$/g, ''), email: match[2].trim() };
+    }
+    return { email: raw };
+};
+
+/**
+ * Send email via Brevo (HTTPS API — works on Render, unlike raw SMTP).
+ * EMAIL_FROM must match (or be close to) the sender verified in
+ * Brevo → Senders, Domains & Dedicated IPs.
  */
 const sendEmail = async ({ to, subject, html, text }) => {
     try {
-        const { data, error } = await resend.emails.send({
-            from: process.env.EMAIL_FROM || 'Studio X <onboarding@resend.dev>',
-            to,
-            subject,
-            html,
-            text
-        });
+        const sendSmtpEmail = new brevo.SendSmtpEmail();
+        sendSmtpEmail.sender = parseFromAddress(process.env.EMAIL_FROM || 'Studio X <noreply@studiotraffic.com>');
+        sendSmtpEmail.to = [{ email: to }];
+        sendSmtpEmail.subject = subject;
+        sendSmtpEmail.htmlContent = html;
+        sendSmtpEmail.textContent = text;
 
-        if (error) {
-            logger.error('Email sending failed:', error);
-            throw new Error('Failed to send email');
-        }
-
-        logger.info(`Email sent to ${to}: ${data?.id}`);
-        return data;
+        const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+        logger.info(`Email sent to ${to}: ${response.body?.messageId}`);
+        return response.body;
     } catch (error) {
-        logger.error('Email sending failed:', error);
+        logger.error('Email sending failed:', error.response?.body || error);
         throw new Error('Failed to send email');
     }
 };
