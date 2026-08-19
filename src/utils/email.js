@@ -1,8 +1,7 @@
-const brevo = require('@getbrevo/brevo');
+const { BrevoClient } = require('@getbrevo/brevo');
 const logger = require('./logger');
 
-const apiInstance = new brevo.TransactionalEmailsApi();
-apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 /**
  * Parses "Name <email@example.com>" into { name, email } for Brevo's API.
@@ -22,16 +21,16 @@ const parseFromAddress = (raw) => {
  */
 const sendEmail = async ({ to, subject, html, text }) => {
     try {
-        const sendSmtpEmail = new brevo.SendSmtpEmail();
-        sendSmtpEmail.sender = parseFromAddress(process.env.EMAIL_FROM || 'Studio X <noreply@studiotraffic.com>');
-        sendSmtpEmail.to = [{ email: to }];
-        sendSmtpEmail.subject = subject;
-        sendSmtpEmail.htmlContent = html;
-        sendSmtpEmail.textContent = text;
+        const response = await brevo.transactionalEmails.sendTransacEmail({
+            sender: parseFromAddress(process.env.EMAIL_FROM || 'Studio X <noreply@studiotraffic.com>'),
+            to: [{ email: to }],
+            subject,
+            htmlContent: html,
+            textContent: text
+        });
 
-        const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
-        logger.info(`Email sent to ${to}: ${response.body?.messageId}`);
-        return response.body;
+        logger.info(`Email sent to ${to}: ${response.messageId}`);
+        return response;
     } catch (error) {
         logger.error('Email sending failed:', error.response?.body || error);
         throw new Error('Failed to send email');
