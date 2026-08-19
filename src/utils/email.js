@@ -190,7 +190,7 @@ const sendInvitationEmail = async (email, orgName, role, token) => {
 
     const text = `You've Been Invited!
 
-${orgName} has invited you to join as ${roleDisplay} on Studio X.
+${orgName} has invited you to join as a ${roleDisplay} on Studio X.
 
 Accept your invitation here:
 ${acceptInviteLink}
