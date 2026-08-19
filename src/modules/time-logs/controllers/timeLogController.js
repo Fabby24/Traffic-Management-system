@@ -101,6 +101,60 @@ class TimeLogController {
         }
     }
 
+    //organiation weekly summary
+    async getOrganizationWeeklySummary(req, res) {
+        try {
+            const organizationId = req.user.organization_id;
+            const { from, to } = req.query;
+
+            const summary = await TimeLogService.getOrganizationWeeklySummary({
+                organizationId,
+                from,
+                to,
+            });
+
+            res.json({
+                success: true,
+                data: summary,
+            });
+        } catch (error) {
+            logger.error('Get organization weekly summary error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to get organization weekly summary',
+                error: error.message,
+            });
+        }
+    }
+
+    /**
+     * Get organization time tracking dashboard
+     * GET /api/v1/time-logs/dashboard/organization
+     */
+    async getOrganizationDashboard(req, res) {
+        try {
+            const organizationId = req.user.organization_id;
+            const { date, period = 'week' } = req.query;
+
+            const dashboard = await TimeLogService.getOrganizationDashboard({
+                organizationId,
+                date,
+                period,
+            });
+
+            res.json({
+                success: true,
+                data: dashboard,
+            });
+        } catch (error) {
+            logger.error('Get organization dashboard error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to get organization time tracking dashboard',
+                error: error.message,
+            });
+        }
+    }
     /**
      * Start timer
      * POST /api/v1/time-logs/start

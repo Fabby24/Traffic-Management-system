@@ -186,6 +186,264 @@ class TimeLogService {
     }
 
     /**
+     * Get organization weekly summary
+     */
+    static async getOrganizationWeeklySummary({ organizationId, from, to }) {
+        const where = {
+            organization_id: organizationId,
+            date: {
+                gte: new Date(from),
+                lte: new Date(to),
+            },
+        };
+
+        const logs = await prisma.timeLog.findMany({
+            where,
+            select: {
+                date: true,
+                hours: true,
+            },
+        });
+
+        // Group by day
+        const dayMap = {};
+        logs.forEach(log => {
+            const key = log.date.toISOString().split('T')[0];
+            if (!dayMap[key]) {
+                dayMap[key] = 0;
+            }
+            dayMap[key] += log.hours || 0;
+        });
+
+        const summary = Object.keys(dayMap).map(key => ({
+            date: key,
+            hours: dayMap[key],
+        }));
+
+        return summary;
+    }
+    
+        /**
+ * Get organization time tracking dashboard data
+ */
+static async getOrganizationDashboard(organizationId, { date, period = 'week' }) {
+    // Get date range
+    let startDate, endDate;
+    const now = new Date();
+
+    if (period === 'today') {
+        startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(now);
+        endDate.setHours(23, 59, 59, 999);
+    } else if (period === 'week') {
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 7);
+        endDate = new Date(now);
+    } else if (period === 'month') {
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 1);
+        endDate = new Date(now);
+    } else {
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 7);
+        endDate = new Date(now);
+    }
+
+    // 1. Get total hours by user
+    const userHours = await prisma.timeLog.groupBy({
+        by: ['user_id'],
+        where: {
+            organization_id: organizationId,
+            date: {
+                gte: startDate,
+                lte: endDate,
+            },
+        },
+        _sum: { hours: true },
+    });
+
+    const userIds = userHours.map(u => u.user_id).filter(id => id !== null);
+    const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true,
+            profile_image: true,
+        },
+    });
+
+    const userHoursData = userHours.map(uh => {
+        const user = users.find(u => u.id === uh.user_id);
+        return {
+            user_id: uh.user_id,
+            first_name: user?.first_name || 'Unknown',
+            last_name: user?.last_name || '',
+            email: user?.email || '',
+            profile_image: user?.profile_image || '',
+            total_hours: uh._sum.hours || 0,
+        };
+    });
+
+    // 2. Get total hours by project
+    const projectHours = await prisma.timeLog.groupBy({
+        by: ['project_id'],
+        where: {
+            organization_id: organizationId,
+            date: {
+                gte: startDate,
+                lte: endDate,
+            },
+        },
+        _sum: { hours: true },
+    });
+
+    const projectIds = projectHours.map(ph => ph.project_id).filter(id => id !== null);
+    const projects = await prisma.project.findMany({
+        where: { id: { in: projectIds } },
+        select: {
+            id: true,
+            name: true,
+            color: true,
+        },
+    });
+
+    const projectHoursData = projectHours.map(ph => {
+        const project = projects.find(p => p.id === ph.project_id);
+        return {
+            project_id: ph.project_id,
+            project_name: project?.name || 'Unknown Project',
+            color: project?.color || '#2563EB',
+            total_hours: ph._sum.hours || 0,
+        };
+    });
+
+    // 3. Get daily breakdown
+    const dailyBreakdown = await prisma.timeLog.groupBy({
+        by: ['date'],
+        where: {
+            organization_id: organizationId,
+            date: {
+                gte: startDate,
+                lte: endDate,
+            },
+        },
+        _sum: { hours: true },
+        orderBy: { date: 'asc' },
+    });
+
+    const dailyData = dailyBreakdown.map(d => ({
+        date: d.date,
+        hours: d._sum.hours || 0,
+    }));
+
+    // 4. Get billable vs non-billable
+    const billableStats = await prisma.timeLog.aggregate({
+        where: {
+            organization_id: organizationId,
+            date: {
+                gte: startDate,
+                lte: endDate,
+            },
+        },
+        _sum: { hours: true },
+    });
+
+    const billableHours = await prisma.timeLog.aggregate({
+        where: {
+            organization_id: organizationId,
+            billable: true,
+            date: {
+                gte: startDate,
+                lte: endDate,
+            },
+        },
+        _sum: { hours: true },
+    });
+
+    // 5. Get recent time logs
+    const recentLogs = await prisma.timeLog.findMany({
+        where: {
+            organization_id: organizationId,
+        },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                    profile_image: true,
+                },
+            },
+            task: {
+                select: {
+                    id: true,
+                    title: true,
+                    project_id: true,
+                },
+            },
+            project: {
+                select: {
+                    id: true,
+                    name: true,
+                    color: true,
+                },
+            },
+        },
+    });
+
+    // 6. Get total hours (all time)
+    const totalHours = await prisma.timeLog.aggregate({
+        where: {
+            organization_id: organizationId,
+        },
+        _sum: { hours: true },
+    });
+
+    // 7. Get active users with time logs today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const activeUsersToday = await prisma.timeLog.groupBy({
+        by: ['user_id'],
+        where: {
+            organization_id: organizationId,
+            date: {
+                gte: today,
+                lt: tomorrow,
+            },
+        },
+        _sum: { hours: true },
+    });
+
+    return {
+        period,
+        dateRange: {
+            from: startDate,
+            to: endDate,
+        },
+        summary: {
+            totalHours: totalHours._sum.hours || 0,
+            periodHours: billableStats._sum.hours || 0,
+            billableHours: billableHours._sum.hours || 0,
+            nonBillableHours: (billableStats._sum.hours || 0) - (billableHours._sum.hours || 0),
+            activeUsers: userHoursData.length,
+            activeUsersToday: activeUsersToday.length,
+        },
+        userHours: userHoursData,
+        projectHours: projectHoursData,
+        dailyBreakdown: dailyData,
+        recentLogs: recentLogs,
+    };
+}
+
+    /**
      * Start timer
      */
     static async startTimer({ organizationId, userId, task_id }) {

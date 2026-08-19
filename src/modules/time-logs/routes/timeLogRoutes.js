@@ -13,6 +13,7 @@ const {
 router.use(authMiddleware);
 router.use(tenantMiddleware);
 
+
 // Get time logs
 router.get('/', TimeLogController.getTimeLogs);
 
@@ -21,6 +22,12 @@ router.get('/summary/daily', TimeLogController.getDailySummary);
 
 // Weekly summary
 router.get('/summary/weekly', TimeLogController.getWeeklySummary);
+
+//organization weekly summary
+router.get('/summary/organization-weekly', TimeLogController.getOrganizationWeeklySummary);
+
+// time traking for admin
+router.get('/dashboard/organization', TimeLogController.getOrganizationDashboard);
 
 // Start timer
 router.post('/start', validate(startTimerValidator), TimeLogController.startTimer);
