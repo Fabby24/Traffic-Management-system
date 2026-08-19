@@ -1,33 +1,28 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const logger = require('./logger');
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: parseInt(process.env.EMAIL_PORT),
-    secure: process.env.EMAIL_SECURE === 'true',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
- * Send email
+ * Send email via Resend (HTTPS API — works on Render, unlike raw SMTP)
  */
 const sendEmail = async ({ to, subject, html, text }) => {
     try {
-        const mailOptions = {
-            from: process.env.EMAIL_FROM || 'Studio X <noreply@studiotraffic.com>',
+        const { data, error } = await resend.emails.send({
+            from: process.env.EMAIL_FROM || 'Studio X <onboarding@resend.dev>',
             to,
             subject,
             html,
             text
-        };
+        });
 
-        const info = await transporter.sendMail(mailOptions);
-        logger.info(`Email sent to ${to}: ${info.messageId}`);
-        return info;
+        if (error) {
+            logger.error('Email sending failed:', error);
+            throw new Error('Failed to send email');
+        }
+
+        logger.info(`Email sent to ${to}: ${data?.id}`);
+        return data;
     } catch (error) {
         logger.error('Email sending failed:', error);
         throw new Error('Failed to send email');
@@ -39,6 +34,19 @@ const sendEmail = async ({ to, subject, html, text }) => {
  */
 const sendWelcomeEmail = async (email, firstName, orgName) => {
     const subject = `Welcome to Studio X - ${orgName}`;
+
+    const text = `Welcome to Studio X, ${firstName}!
+
+Your organization "${orgName}" has been successfully created.
+
+You can now log in to your account and start managing your projects, tasks, and team.
+
+Login here: ${process.env.FRONTEND_URL}/login
+
+---
+Studio X - Multi-Tenant Traffic Management System
+You received this email because you registered on our platform.`;
+
     const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0B132B; color: #FFFFFF; padding: 40px; border-radius: 12px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -80,7 +88,7 @@ const sendWelcomeEmail = async (email, firstName, orgName) => {
         </div>
     `;
 
-    return sendEmail({ to: email, subject, html });
+    return sendEmail({ to: email, subject, html, text });
 };
 
 /**
@@ -88,8 +96,23 @@ const sendWelcomeEmail = async (email, firstName, orgName) => {
  */
 const sendPasswordResetEmail = async (email, token, firstName) => {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-    
     const subject = 'Reset Your Password - Studio X';
+
+    const text = `Password Reset Request
+
+Hello ${firstName || 'User'},
+
+You requested to reset your password. Use the link below to reset it:
+
+${resetLink}
+
+This link will expire in 24 hours.
+
+If you didn't request this, please ignore this email.
+
+---
+Studio X - Multi-Tenant Traffic Management System`;
+
     const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0B132B; color: #FFFFFF; padding: 40px; border-radius: 12px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -145,7 +168,7 @@ const sendPasswordResetEmail = async (email, token, firstName) => {
         </div>
     `;
 
-    return sendEmail({ to: email, subject, html });
+    return sendEmail({ to: email, subject, html, text });
 };
 
 /**
@@ -154,10 +177,23 @@ const sendPasswordResetEmail = async (email, token, firstName) => {
 const sendInvitationEmail = async (email, orgName, role, token) => {
     const frontendUrl = process.env.FRONTEND_URL;
     const acceptInviteLink = `${frontendUrl}/accept-invite?token=${token}`;
-    
     const roleDisplay = role === 'org_admin' ? 'Organization Admin' : 'Team Member';
-    
     const subject = `You've been invited to join ${orgName} on Studio X`;
+
+    const text = `You've Been Invited!
+
+${orgName} has invited you to join as ${roleDisplay} on Studio X.
+
+Accept your invitation here:
+${acceptInviteLink}
+
+This invitation will expire in 7 days.
+
+If you didn't expect this invitation, please ignore this email.
+
+---
+Studio X - Multi-Tenant Traffic Management System`;
+
     const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0B132B; color: #FFFFFF; padding: 40px; border-radius: 12px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -203,7 +239,7 @@ const sendInvitationEmail = async (email, orgName, role, token) => {
         </div>
     `;
 
-    return sendEmail({ to: email, subject, html });
+    return sendEmail({ to: email, subject, html, text });
 };
 
 module.exports = {
