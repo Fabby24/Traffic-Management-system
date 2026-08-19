@@ -72,52 +72,52 @@ const updateClientValidator = [
         .isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
 
     body('company')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .trim()
         .isLength({ max: 100 }).withMessage('Company name must be less than 100 characters'),
 
     body('email')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .trim()
         .isEmail().withMessage('Invalid email format')
         .normalizeEmail(),
 
     body('phone')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .trim()
         .isLength({ max: 20 }).withMessage('Phone number must be less than 20 characters'),
 
     body('website')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .trim()
         .isURL().withMessage('Invalid URL format'),
 
     body('industry')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .isIn(INDUSTRIES).withMessage('Invalid industry'),
 
     body('status')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .isIn(Object.values(CLIENT_STATUS)).withMessage('Invalid status'),
 
     body('priority')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .isIn(Object.values(CLIENT_PRIORITY)).withMessage('Invalid priority'),
 
     body('preferred_contact')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .isIn(Object.values(CONTACT_METHODS)).withMessage('Invalid contact method'),
 
     body('tags')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .isArray().withMessage('Tags must be an array'),
 
     body('tags.*')
-        .optional()
+        .optional({ nullable: true, checkFalsy: true })
         .isString().withMessage('Each tag must be a string'),
 
     body('assigned_to')
-        .optional({ nullable: true })
+        .optional({ nullable: true, checkFalsy: true })
         .isString().withMessage('Invalid user ID'),
 ];
 
