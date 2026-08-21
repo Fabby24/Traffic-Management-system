@@ -235,6 +235,45 @@ class AuthService {
         return permissions[role] || [];
     }
 
+    static async updateProfile(userId, { first_name, last_name }) {
+        try {
+            const user = await prisma.user.findUnique({
+                where: { id: userId }
+            });
+ 
+            if (!user) {
+                throw new Error('User not found');
+            }
+ 
+            const updated = await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    first_name: first_name !== undefined ? first_name : undefined,
+                    last_name: last_name !== undefined ? last_name : undefined,
+                }
+            });
+ 
+            await prisma.auditLog.create({
+                data: {
+                    organization_id: user.organization_id,
+                    user_id: userId,
+                    action: 'profile_updated',
+                    entity_type: 'user',
+                    entity_id: userId,
+                    changes: { first_name, last_name }
+                }
+            });
+ 
+            const { password: _, ...userWithoutPassword } = updated;
+            return userWithoutPassword;
+ 
+        } catch (error) {
+            logger.error('Update profile error:', error);
+            throw error;
+        }
+    }
+
+
     static async requestPasswordReset(email) {
         try {
             const user = await prisma.user.findFirst({

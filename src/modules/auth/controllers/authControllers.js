@@ -194,6 +194,44 @@ async googleCallback(req, res) {
         }
     }
 
+        /**
+     * Update current user's profile
+     * PATCH /api/v1/auth/profile
+     */
+    async updateProfile(req, res) {
+        try {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({
+                    success: false,
+                    errors: errors.array()
+                });
+            }
+ 
+            const userId = req.user.user_id;
+            const { first_name, last_name } = req.body;
+ 
+            const updatedUser = await AuthService.updateProfile(userId, {
+                first_name,
+                last_name
+            });
+ 
+            res.json({
+                success: true,
+                message: 'Profile updated successfully',
+                data: { user: updatedUser }
+            });
+ 
+        } catch (error) {
+            logger.error('Update profile error:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Failed to update profile'
+            });
+        }
+    }
+
+
     /**
      * Request password reset
      * POST /api/v1/auth/forgot-password

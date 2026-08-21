@@ -51,6 +51,11 @@ const loginValidator = [
         .notEmpty().withMessage('Password is required')
 ];
 
+const updateProfileValidator = [
+    body('first_name').optional({ nullable: true, checkFalsy: true }).isString().trim(),
+    body('last_name').optional({ nullable: true, checkFalsy: true }).isString().trim(),
+];
+
 const forgotPasswordValidator = [
     body('email')
         .trim()
@@ -84,5 +89,6 @@ module.exports = {
     loginValidator,
     forgotPasswordValidator,
     resetPasswordValidator,
-    changePasswordValidator
+    changePasswordValidator,
+    updateProfileValidator
 };

@@ -1,4 +1,5 @@
 const express = require('express');
+const { body } = require('express-validator');
 const router = express.Router();
 const AuthController = require('../controllers/authControllers');
 const authMiddleware = require('../../../middlewares/auth');
@@ -55,6 +56,17 @@ router.post(
     validate(resetPasswordValidator),
     AuthController.resetPassword
 );
+
+router.patch(
+    '/profile',
+    authMiddleware,
+    [
+        body('first_name').optional({ nullable: true, checkFalsy: true }).isString().trim(),
+        body('last_name').optional({ nullable: true, checkFalsy: true }).isString().trim(),
+    ],
+    AuthController.updateProfile
+);
+
 
 // Protected routes
 router.use(authMiddleware);
