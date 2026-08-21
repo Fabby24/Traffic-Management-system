@@ -226,7 +226,7 @@ class TimeLogService {
         /**
  * Get organization time tracking dashboard data
  */
-static async getOrganizationDashboard(organizationId, { date, period = 'week' }) {
+static async getOrganizationDashboard({organizationId, date, period = 'week' }) {
     // Get date range
     let startDate, endDate;
     const now = new Date();
